@@ -1,0 +1,34 @@
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+eeprom.bin.bak
+
+# Elodin run artifacts
+*_dbXXX/
+betaflight_db*/
+sitl_data/
+*.map
+editor_output.log
+tmp/
+ai-context/
+dbs/
+
+# OS / editor cruft
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
+
+# Python tooling
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+
+# uv
+uv.lock.bak

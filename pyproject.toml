@@ -1,0 +1,27 @@
+[project]
+name = "ai-grand-prix"
+version = "0.1.0"
+description = "Open-source Elodin-based practice simulator for the Anduril AI Grand Prix"
+authors = [{ name = "Elodin Systems" }]
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.13"
+dependencies = [
+    "elodin==0.17.2",
+    "numpy>=2.1.0",
+    "opencv-python>=4.10.0",
+    "pytest>=8.3.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/elodin-sys/ai-grand-prix"
+Documentation = "https://github.com/elodin-sys/ai-grand-prix#readme"
+Issues = "https://github.com/elodin-sys/ai-grand-prix/issues"
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
