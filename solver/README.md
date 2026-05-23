@@ -1,4 +1,4 @@
-# `solver/` — your autonomy stack
+# `solver/`: your autonomy stack
 
 This is the only directory you should need to edit to compete.
 
@@ -13,7 +13,7 @@ def autopilot(update: SensorUpdate) -> RCCommand:
     ...
 ```
 
-- **`update`** — see [`api.py`](api.py). Includes `t`, `tick`, world pose/velocity, gyro, accel, baro, mag, optional `frame_rgba`, and `*_fresh` flags for slower streams. **No GPS, no depth, no motor RPM** (matching the official AI Grand Prix sim).
+- **`update`**: see [`api.py`](api.py). Includes `t`, `tick`, world pose/velocity, gyro, accel, baro, mag, optional `frame_rgba`, and `*_fresh` flags for slower streams. **No GPS, no depth, no motor RPM** (matching the official AI Grand Prix sim).
 
 Return an `RCCommand` with PWM channel values:
 
@@ -40,7 +40,7 @@ RACE_SOLVER=my_team.my_solver elodin editor sim/main.py
 ## Tips
 
 - Camera intrinsics in [`sim/camera.py`](../sim/camera.py) match the published [AI Grand Prix](https://www.theaigrandprix.com/) VADR-TS-002 sensor spec.
-- Gate inner opening is **1.5 m × 1.5 m** — use this as your PnP scale anchor.
+- Gate inner opening is **1.5 m × 1.5 m**. Use this as your PnP scale anchor.
 - Camera tilts **20° upward** in body frame; account for that when projecting gate centers from image to body.
 - The sim is **deterministic**: same seed + same code = same lap time. Lean on this for regression testing.
 - AGP runs are capped at 8 minutes, but this practice sim defaults to a 15 s run so smoke tests stay quick. Change `simulation_time` in [`sim/config.py`](../sim/config.py) for longer attempts.

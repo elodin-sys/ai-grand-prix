@@ -1,6 +1,6 @@
 # AI Grand Prix Playground
 
-An open-source, Elodin-based practice simulator for [Anduril's AI Grand Prix](https://www.theaigrandprix.com/) — a $500K autonomous drone-racing competition. Built so contestants can iterate on perception, planning, and control code today, while the official Virtual Qualifier 1 simulator finishes baking.
+An open-source, Elodin-based practice simulator for [Anduril's AI Grand Prix](https://www.theaigrandprix.com/), a $500K autonomous drone-racing competition. Built so contestants can iterate on perception, planning, and control code today, while the official Virtual Qualifier 1 simulator finishes baking.
 
 <p align="center">
   <img src="./drone_race_preview.gif" alt="AI Grand Prix demo flight" width="720">
@@ -12,7 +12,7 @@ What you get out of the box:
 - A real **Betaflight SITL** flight controller in lockstep with the physics, talking standard MAVLink-style RC + PWM over UDP.
 - A forward FPV camera matching the AI Grand Prix tech-spec intrinsics (640×360, fx=fy=320, cx=320, cy=180, +20° up-tilt, 30 Hz).
 - A 3-gate forward course in Elodin's ENU frame (+X/East), with automatic pass-time tracking.
-- A clean [`solver/`](solver/) package — the only directory you edit to compete.
+- A clean [`solver/`](solver/) package. That's the only directory you edit to compete.
 
 ## Quick start (macOS / Linux, ~5 minutes)
 
@@ -88,18 +88,18 @@ just verify   # check the latest run log for a successful takeoff
 just clean    # remove betaflight_db### directories and CSV/video exports
 ```
 
-35 tests across packet round-trips, course geometry, camera intrinsics, and the baseline solver — all run in well under a second (no Elodin runtime needed).
+36 tests across packet round-trips, course geometry, camera intrinsics, and the baseline solver. All run in well under a second (no Elodin runtime needed).
 
 ## Going deeper
 
-- [`ARCHITECTURE.md`](ARCHITECTURE.md) — full design: lockstep cycle, coordinate frames, module reference, editor schematic, configuration knobs, and known opportunities for improvement.
-- [`solver/README.md`](solver/README.md) — the autopilot contract.
+- [`ARCHITECTURE.md`](ARCHITECTURE.md): full design covering the lockstep cycle, coordinate frames, module reference, editor schematic, configuration knobs, and known opportunities for improvement.
+- [`solver/README.md`](solver/README.md): the autopilot contract.
 - The Elodin engine, editor, and Python bindings live at [`elodin-sys/elodin`](https://github.com/elodin-sys/elodin); read its README for the full surface area, including the `sensor_camera` and `StepContext` APIs we lean on here.
 
 ## Acknowledgements
 
-Built on top of the upstream [`elodin-sys/elodin/examples/betaflight-sitl`](https://github.com/elodin-sys/elodin/tree/main/examples/betaflight-sitl), [`examples/sensor-camera`](https://github.com/elodin-sys/elodin/tree/main/examples/sensor-camera), and [`examples/crazyflie-edu`](https://github.com/elodin-sys/elodin/tree/main/examples/crazyflie-edu) examples. Not affiliated with Anduril, DCL, Neros, or JobsOhio — the AI Grand Prix is theirs; this practice rig is community fan-art so contestants can start hacking now.
+Built on top of the upstream [`elodin-sys/elodin/examples/betaflight-sitl`](https://github.com/elodin-sys/elodin/tree/main/examples/betaflight-sitl), [`examples/sensor-camera`](https://github.com/elodin-sys/elodin/tree/main/examples/sensor-camera), and [`examples/crazyflie-edu`](https://github.com/elodin-sys/elodin/tree/main/examples/crazyflie-edu) examples. Not affiliated with Anduril, DCL, Neros, or JobsOhio. The AI Grand Prix is theirs; this practice rig is community fan-art so contestants can start hacking now.
 
 ## License
 
-[Apache 2.0](LICENSE) — same license as the upstream [Elodin engine](https://github.com/elodin-sys/elodin).
+[Apache 2.0](LICENSE), the same license as the upstream [Elodin engine](https://github.com/elodin-sys/elodin).

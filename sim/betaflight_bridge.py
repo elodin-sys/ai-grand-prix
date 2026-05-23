@@ -31,11 +31,10 @@ MAX_PWM_CHANNELS = 16
 
 @dataclass
 class FDMPacket:
-    """
-    Flight Dynamics Model packet sent to Betaflight SITL.
+    """Flight Dynamics Model packet, sim -> BF.
 
-    Contains simulated sensor data from Elodin physics engine.
-    Total size: 216 bytes (all doubles + padding)
+    Total size: 144 bytes (18 packed doubles, see _FORMAT). The size is also
+    asserted in `tests/test_packets.py`.
     """
 
     timestamp: float = 0.0  # seconds
@@ -54,10 +53,9 @@ class FDMPacket:
     )  # meters, ENU (lon, lat, alt for GPS)
     pressure: float = 101325.0  # Pa (sea level default)
 
-    # Packet format: 18 doubles = 144 bytes
-    # timestamp(1) + gyro(3) + accel(3) + quat(4) + vel(3) + pos(3) + pressure(1) = 18
+    # Layout: timestamp(1) + gyro(3) + accel(3) + quat(4) + vel(3) + pos(3) + pressure(1) = 18 doubles.
     _FORMAT = "<18d"
-    SIZE = struct.calcsize(_FORMAT)  # 144 bytes
+    SIZE = struct.calcsize(_FORMAT)
 
     def pack(self) -> bytes:
         """Pack the FDM packet into bytes for UDP transmission."""
@@ -102,13 +100,9 @@ class FDMPacket:
 
 @dataclass
 class RCPacket:
-    """
-    RC (Remote Control) packet sent to Betaflight SITL.
+    """16-channel RC packet (PWM µs, typically 1000-2000), sim -> BF.
 
-    Contains RC channel values (PWM microseconds, typically 1000-2000).
-    Standard channel mapping:
-        0: Roll, 1: Pitch, 2: Throttle, 3: Yaw
-        4-15: Aux channels
+    Standard channel mapping: 0=Roll, 1=Pitch, 2=Throttle, 3=Yaw, 4-15=Aux.
     """
 
     timestamp: float = 0.0
@@ -138,12 +132,7 @@ class RCPacket:
 
 @dataclass
 class ServoPacket:
-    """
-    Servo/Motor output packet received from Betaflight SITL.
-
-    Contains normalized motor speeds for quadcopter.
-    Values are normalized: [0.0, 1.0] for normal, [-1.0, 1.0] for 3D mode.
-    """
+    """Normalized 4-motor output, BF -> sim. [0,1] in normal mode, [-1,1] in 3D mode."""
 
     motor_speed: np.ndarray = field(default_factory=lambda: np.zeros(4))
 
@@ -166,12 +155,7 @@ class ServoPacket:
 
 @dataclass
 class ServoPacketRaw:
-    """
-    Raw servo/motor output packet received from Betaflight SITL.
-
-    Contains raw PWM values (typically 1000-2000 microseconds).
-    Supports up to 16 PWM channels.
-    """
+    """Raw 16-channel PWM motor output (µs), BF -> sim. Unused in the lockstep path."""
 
     motor_count: int = 4
     pwm_output: np.ndarray = field(default_factory=lambda: np.full(MAX_PWM_CHANNELS, 1000.0))
@@ -200,26 +184,16 @@ class ServoPacketRaw:
 
 
 class BetaflightSyncBridge:
-    """
-    Synchronous Betaflight SITL bridge for lockstep simulation.
+    """Blocking step(fdm, rc) -> motors path for Betaflight SITL lockstep.
 
-    This bridge is designed for use with Elodin's post_step callback and
-    Betaflight's SIMULATOR_GYROPID_SYNC mode. It provides blocking step()
-    calls that:
-    1. Send FDM + RC packets to Betaflight
-    2. Wait for motor response (blocking with timeout)
-    3. Return motor values
-
-    This enables deterministic, faster-than-realtime simulation where each
-    Elodin physics tick is tightly synchronized with one Betaflight PID iteration.
+    Pairs with Betaflight built with `SIMULATOR_GYROPID_SYNC`: each call sends
+    FDM + RC, blocks on the motor reply, and returns 4 normalized motor values.
+    One step here corresponds to exactly one Betaflight PID iteration.
 
     Usage:
         bridge = BetaflightSyncBridge()
         bridge.start()
-
-        # In post_step callback:
-        motors = bridge.step(fdm_packet, rc_packet)
-
+        motors = bridge.step(fdm_packet, rc_packet)  # inside post_step
         bridge.stop()
     """
 
@@ -231,16 +205,6 @@ class BetaflightSyncBridge:
         pwm_port: int = PORT_PWM,
         timeout_ms: int = 100,
     ):
-        """
-        Initialize the synchronous Betaflight bridge.
-
-        Args:
-            host: IP address of Betaflight SITL (default localhost)
-            state_port: Port for FDM packets (default 9003)
-            rc_port: Port for RC packets (default 9004)
-            pwm_port: Port to receive normalized motor outputs (default 9002)
-            timeout_ms: Timeout for motor response in milliseconds
-        """
         self.host = host
         self.state_port = state_port
         self.rc_port = rc_port
@@ -296,7 +260,6 @@ class BetaflightSyncBridge:
         print(f"  PWM <- 0.0.0.0:{self.pwm_port} (timeout={self.timeout_ms}ms)")
 
     def stop(self) -> None:
-        """Stop the bridge and close sockets."""
         if not self._started:
             return
 
@@ -318,30 +281,12 @@ class BetaflightSyncBridge:
         rc: RCPacket,
         timeout_ms: Optional[int] = None,
     ) -> np.ndarray:
-        """
-        Perform one synchronized SITL step.
+        """Send FDM + RC, block on the motor reply, return 4 motors in [0.0, 1.0].
 
-        This is the core synchronization method. When Betaflight is built with
-        SIMULATOR_GYROPID_SYNC enabled, it blocks its main loop until an FDM
-        packet arrives. After processing, it immediately sends motor outputs.
-
-        This method:
-        1. Sends FDM packet (sensor data)
-        2. Sends RC packet (control inputs)
-        3. Waits for motor response (blocking with timeout)
-        4. Returns normalized motor values [0.0, 1.0]
-
-        Args:
-            fdm: FDM packet with sensor data
-            rc: RC packet with control inputs
-            timeout_ms: Override default timeout (optional)
-
-        Returns:
-            Array of 4 normalized motor values [0.0, 1.0]
-
-        Raises:
-            TimeoutError: If no motor response within timeout
-            RuntimeError: If bridge not started
+        Sending the FDM packet is what unblocks Betaflight's GYROPID_SYNC loop.
+        Raises TimeoutError if no motor packet arrives within `timeout_ms`
+        (or the bridge's default), except on the very first call where we
+        return zeros to ride out Betaflight's own startup.
         """
         if not self._started:
             raise RuntimeError("Bridge not started - call start() first")
@@ -381,50 +326,16 @@ class BetaflightSyncBridge:
 
     @property
     def step_count(self) -> int:
-        """Number of successful steps completed."""
         return self._step_count
 
     @property
     def last_motors(self) -> np.ndarray:
-        """Last received motor values."""
         return self._last_motors.copy()
 
     def __enter__(self):
-        """Context manager entry."""
         self.start()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit."""
         self.stop()
         return False
-
-
-if __name__ == "__main__":
-    # Simple test - print packet sizes
-    print("Betaflight SITL Packet Sizes:")
-    print(f"  FDMPacket:       {FDMPacket.SIZE} bytes")
-    print(f"  RCPacket:        {RCPacket.SIZE} bytes")
-    print(f"  ServoPacket:     {ServoPacket.SIZE} bytes")
-    print(f"  ServoPacketRaw:  {ServoPacketRaw.SIZE} bytes")
-
-    # Test packing/unpacking
-    fdm = FDMPacket(
-        timestamp=1.0,
-        imu_angular_velocity_rpy=np.array([0.1, 0.2, 0.3]),
-        imu_linear_acceleration_xyz=np.array([0.0, 0.0, 9.81]),
-        imu_orientation_quat=np.array([1.0, 0.0, 0.0, 0.0]),
-        velocity_xyz=np.array([0.0, 0.0, 0.0]),
-        position_xyz=np.array([0.0, 0.0, 0.0]),
-        pressure=101325.0,
-    )
-
-    packed = fdm.pack()
-    unpacked = FDMPacket.from_bytes(packed)
-
-    print("\nFDM Pack/Unpack test:")
-    print(f"  Original timestamp: {fdm.timestamp}")
-    print(f"  Unpacked timestamp: {unpacked.timestamp}")
-    print(
-        f"  Accel match: {np.allclose(fdm.imu_linear_acceleration_xyz, unpacked.imu_linear_acceleration_xyz)}"
-    )

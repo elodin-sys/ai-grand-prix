@@ -1,4 +1,4 @@
-# AI Grand Prix Playground — helper tasks only.
+# AI Grand Prix Playground: helper tasks only.
 #
 # The main workflow is intentionally direct and Elodin-native:
 #

@@ -1,4 +1,4 @@
-# AI Grand Prix — Spec Reference & Explainer
+# AI Grand Prix: spec reference and explainer
 
 > Companion explainer to `260508_Technical_Spec_0002.pdf` ("Virtual AI Drone Race
 > Technical Specification"), for both human readers (contestants, contributors)
@@ -6,7 +6,7 @@
 > text** with **what it means for us** and **where it lives in code**, and ends
 > with a section calling out **deviations, ambiguities, and open questions**.
 >
-> This document is intentionally redundant with `ARCHITECTURE.md` in places —
+> This document is intentionally redundant with `ARCHITECTURE.md` in places.
 > ARCHITECTURE.md describes _our practice rig_; this file describes _the spec
 > we're targeting_ and how faithfully we currently mirror it.
 
@@ -28,12 +28,12 @@
 
 > The spec is a **contract** between contestants and the as-yet-unreleased DCL
 > Simulator. It is normative on protocol, sensors, gates, and timing. It is
-> _not_ a description of the simulator's internals — those are explicitly out
+> _not_ a description of the simulator's internals; those are explicitly out
 > of scope (§2.3).
 
 ## 2. The challenge in one paragraph
 
-Contestants ship Python (or any other language — §5.1) autopilot software that
+Contestants ship Python (or any other language, see §5.1) autopilot software that
 controls a simulated drone through a sequenced gate course, MAVLink over UDP,
 with a 640×360 forward camera and IMU/attitude telemetry. The course is
 deterministic, identical for every team, and must be flown within an 8-minute
@@ -48,7 +48,7 @@ pass/fail check that your software can navigate the course at all.
 |---|---|---|
 | Physics model | rigid-body, with thrust, aero drag, gravity, collisions | §3.2 |
 | Physics update rate | **120 Hz** | §3.2 / §4.4 |
-| Spatial reference | local Cartesian only — **no GPS, no global position** | §3.3 |
+| Spatial reference | local Cartesian only, **no GPS, no global position** | §3.3 |
 | Visual environment | forward FPV camera + gates + scene + dynamic lighting | §3.4 |
 | Determinism | course geometry, physics params, environment are identical for every team | §3.5 |
 
@@ -57,7 +57,7 @@ What it means for us:
 - Solvers must localize from **vision + IMU + attitude** alone. No
   drone-position oracle is available at race time.
 - 120 Hz physics is the _spec_; our practice rig runs Betaflight in lockstep at
-  a much higher tick rate (`simulation_rate = 2000 Hz` by default in
+  a much higher tick rate (`simulation_rate = 1000 Hz` by default in
   [`sim/config.py`](../sim/config.py)) so that PID iteration matches a real
   Betaflight flight controller. Solvers see a much higher tick stream, but
   should not rely on tick rates above 120 Hz for portability.
@@ -128,7 +128,7 @@ What it means for us:
 Where it lives in our code:
 
 - We run Elodin internally in **ENU** (East-North-Up) and convert at the
-  Betaflight bridge — see [`sim/betaflight_bridge.py`](../sim/betaflight_bridge.py)
+  Betaflight bridge; see [`sim/betaflight_bridge.py`](../sim/betaflight_bridge.py)
   and `ARCHITECTURE.md` §"Coordinate frames and unit conventions".
 - Our solver API (`SensorUpdate` in [`solver/api.py`](../solver/api.py)) hands
   out **ENU** world state today. Once we adopt MAVLink (see §11) this should
@@ -159,7 +159,7 @@ Standard pinhole, **no lens distortion**.
 > produce frames consistent with `fx, fy, cx, cy` than with a one-sentence
 > FoV statement that contradicts them.
 
-## 6. Communication protocol — MAVLink (spec §4)
+## 6. Communication protocol: MAVLink (spec §4)
 
 The official simulator speaks MAVLink 2 over UDP, using
 [c_library_v2](https://github.com/mavlink/c_library_v2) /
@@ -190,7 +190,7 @@ that as: high-rate IMU is the primary inertial telemetry stream.
 Implications:
 
 - Solvers must emit at least 2 Hz `HEARTBEAT` or the link will be considered
-  dropped (standard MAVLink behavior — link timeout is typically ~5 s without
+  dropped (standard MAVLink behavior; link timeout is typically ~5 s without
   heartbeats).
 - Commands above ~100 Hz will be rate-limited / dropped. Most racing pilots
   send at 50 Hz, which is plenty.
@@ -295,7 +295,7 @@ What it means:
 - Contestants can develop on any OS, in any language, but the **official
   qualifier sim only runs on Windows 11**. UDP-over-loopback to a Windows
   host with the sim is the canonical setup.
-- 8 GB VRAM is the GPU target — solvers using heavy CNNs / VLMs should
+- 8 GB VRAM is the GPU target. Solvers using heavy CNNs / VLMs should
   budget memory accordingly; the host's VRAM is shared with the sim itself.
 - Python 3.14.2 is the _stated_ reference. If you target it explicitly,
   prefer language features that gracefully degrade on 3.11–3.13.
@@ -367,10 +367,10 @@ What it means:
   click-to-restart, no joystick. The autopilot starts the run and finishes
   the run.
 - Submitted runs are presumed to be entirely software-driven.
-- Pre-run setup (loading weights, calibrating filters) is fine — only
+- Pre-run setup (loading weights, calibrating filters) is fine; only
   in-flight intervention is disqualifying.
 
-## 12. Round One — Qualification Phase (spec §8)
+## 12. Round One: qualification phase (spec §8)
 
 | Item | Value |
 |---|---|
@@ -398,14 +398,14 @@ edit if it ever changes.
 | Spec topic | Spec § | In this repo |
 |---|---|---|
 | Physics 120 Hz | §3.2, §4.4 | `pid_rate` in [`sim/config.py`](../sim/config.py) (our internal `simulation_rate` is higher; that's the Betaflight lockstep tick) |
-| Drone 280 × 280 × 160 mm | §3.6 | [`sim/config.py`](../sim/config.py) (`DroneConfig` — not literally enforced; presets approximate) |
+| Drone 280 × 280 × 160 mm | §3.6 | [`sim/config.py`](../sim/config.py) (`DroneConfig`; not literally enforced, presets approximate) |
 | Gate 2.7 m outer / 1.5 m inner / 0.26 m depth | §3.7 | `GATE_OUTER_W/H`, `GATE_INNER_W/H`, `GATE_DEPTH` in [`sim/course.py`](../sim/course.py) |
 | MAVLink coordinate frames (NED) | §3.8 | NED ↔ ENU conversion in [`sim/betaflight_bridge.py`](../sim/betaflight_bridge.py); `SensorUpdate` is still ENU |
 | Camera 640 × 360, intrinsics, +20° tilt | §3.8 | [`sim/camera.py`](../sim/camera.py) (`CAM_WIDTH`, `CAM_HEIGHT`, `CAM_FX`, `CAM_FY`, `CAM_CX`, `CAM_CY`, `CAM_FOV_VERT_DEG` (derived), `CAM_TILT_UP_DEG`) |
 | Vision 30 Hz | §4.6 | `fpv_rate` in [`sim/config.py`](../sim/config.py), `TARGET_FPS` in [`sim/camera.py`](../sim/camera.py) |
 | MAVLink messages over UDP | §4 | **Not implemented.** We use Betaflight RC + FDM + PWM packets over UDP, then re-expose telemetry to the solver via in-process `SensorUpdate` |
 | JPEG-chunked vision UDP | §4.6 | **Not implemented.** Frames handed to solver as raw RGBA arrays |
-| No GPS, no depth, no motor RPM, no battery | §3.3 + §4.5 (by omission) | [`solver/api.py`](../solver/api.py) — `SensorUpdate` deliberately omits these |
+| No GPS, no depth, no motor RPM, no battery | §3.3 + §4.5 (by omission) | [`solver/api.py`](../solver/api.py) (`SensorUpdate` deliberately omits these) |
 | 8-minute max run | §8.3 | `simulation_time` in [`sim/config.py`](../sim/config.py) |
 | Time-trial scoring & gate ordering | §8 (implied) | `detect_gate_pass` and `print_summary` in [`sim/course.py`](../sim/course.py) |
 | ≥ 2 Hz heartbeat, < 100 Hz commands | §4.4 | **Not implemented.** Solver returns an `RCCommand` _every tick_; rate-limiting belongs in a future MAVLink shim |
@@ -461,7 +461,7 @@ all of these as TBD.
 - **Crash physics.** Rigid-body with collisions is mentioned (§3.2). It is
   not specified whether the drone recovers after a crash, despawns, or ends
   the run.
-- **Camera VFoV labelling.** §5 above — 90° stated vs ≈58.72° implied by
+- **Camera VFoV labelling.** §5 above: 90° stated vs ≈58.72° implied by
   the intrinsics. We treat this as a labelling error in the spec text and
   follow the intrinsics, but if the official sim ever ships with an
   actual 90° vertical FoV we will need to revisit.
@@ -488,25 +488,25 @@ When updated documents arrive, this file should be revised alongside
 
 For a new contestant or contributor coming in cold:
 
-1. The spec PDF itself: [`260508_Technical_Spec_0002.pdf`](../260508_Technical_Spec_0002.pdf) — 11 pages, ~20 min.
+1. The spec PDF itself: [`260508_Technical_Spec_0002.pdf`](../260508_Technical_Spec_0002.pdf), 11 pages, ~20 min.
 2. This file (`context/agp-spec-reference.md`).
-3. [`README.md`](../README.md) — get the practice rig running locally.
-4. [`solver/README.md`](../solver/README.md) — the autopilot contract you'll actually be writing against.
-5. [`ARCHITECTURE.md`](../ARCHITECTURE.md) — how the practice rig is built; useful both for hacking on the sim and for understanding why the on-the-wire surface differs from the spec.
+3. [`README.md`](../README.md): get the practice rig running locally.
+4. [`solver/README.md`](../solver/README.md): the autopilot contract you'll actually be writing against.
+5. [`ARCHITECTURE.md`](../ARCHITECTURE.md): how the practice rig is built; useful both for hacking on the sim and for understanding why the on-the-wire surface differs from the spec.
 
 ## Appendix A. Glossary
 
 | Term | Meaning |
 |---|---|
-| **AGP** | AI Grand Prix — the Anduril-sponsored autonomous drone racing competition |
-| **VADR-TS-002** | Spec document ID; "Virtual AI Drone Race — Technical Specification, doc 002" |
+| **AGP** | AI Grand Prix; the Anduril-sponsored autonomous drone racing competition |
+| **VADR-TS-002** | Spec document ID; "Virtual AI Drone Race, Technical Specification, doc 002" |
 | **DCL Simulator** | The official simulator the AGP team is building (the one we're emulating) |
 | **MAVLink 2** | Lightweight binary message protocol used by ArduPilot/PX4/etc. for vehicle telemetry & control |
 | **MAVSDK** | High-level MAVLink client SDK |
-| **SITL** | Software-in-the-loop — running a flight controller as a process with simulated inputs |
+| **SITL** | Software-in-the-loop: running a flight controller as a process with simulated inputs |
 | **NED** | North-East-Down coordinate frame, MAVLink default for world/body |
 | **ENU** | East-North-Up coordinate frame, Elodin (and ROS) default |
 | **FoV** | Field of view; in a pinhole model, derived from focal length and image size |
-| **PnP** | Perspective-n-Point — estimating camera pose from N known 3D points |
+| **PnP** | Perspective-n-Point: estimating camera pose from N known 3D points |
 | **`SensorUpdate`** | Our practice-rig surrogate for the MAVLink telemetry bundle; see [`solver/api.py`](../solver/api.py) |
 | **`RCCommand`** | Our practice-rig surrogate for `SET_ATTITUDE_TARGET` / `SET_POSITION_TARGET_LOCAL_NED` |

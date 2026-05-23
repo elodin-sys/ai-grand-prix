@@ -54,12 +54,9 @@ except AttributeError:
     pass
 
 
-# --- Configuration ---
 config = DEFAULT_CONFIG
 config.set_as_global()
 
-
-# --- Betaflight Binary Path ---
 REPO_ROOT = _REPO_ROOT
 BETAFLIGHT_PATH = REPO_ROOT / "betaflight" / "obj" / "main" / "betaflight_SITL.elf"
 
@@ -71,25 +68,20 @@ if not BETAFLIGHT_PATH.exists():
     sys.exit(1)
 
 
-# --- Clean up stale processes from previous runs ---
-# This runs BEFORE s10 starts, so it only affects leftover processes from
-# previous interrupted simulations, not the current run's Betaflight.
+# Reap stragglers from earlier interrupted runs BEFORE s10 starts; s10 will
+# spawn a fresh Betaflight once world.run() begins.
 def cleanup_stale_betaflight():
-    """Kill any stale Betaflight SITL processes from previous runs."""
     try:
         subprocess.run(["pkill", "-f", "betaflight_SITL"], capture_output=True, timeout=5)
-        time.sleep(0.1)  # Brief pause to let the process terminate
+        time.sleep(0.1)
     except Exception:
         pass
 
 
-# Only cleanup when running with s10 (without --no-s10 flag)
-# s10 will start a fresh Betaflight after world.run() begins
 if "--no-s10" not in sys.argv:
     cleanup_stale_betaflight()
 
 
-# --- World Creation ---
 world = el.World()
 
 # Active race course: straight ahead along ENU +X at hover altitude.
@@ -182,16 +174,14 @@ world.schematic(
 )
 
 
-# --- System ---
 physics = create_physics_system(config)
 sensors = create_sensor_system(config)
 visualization = create_visualization_system(config)
 system = physics | sensors | visualization
 
 
-# --- Betaflight Process Management via s10 ---
-# Register Betaflight SITL as an s10 process recipe
-# s10 will manage the process lifecycle (start/stop) in all execution contexts
+# Register Betaflight SITL as an s10 process recipe so s10 manages its
+# lifecycle (start/stop) in every execution context.
 betaflight_recipe = el.s10.PyRecipe.process(
     name="Betaflight SITL",
     cmd=str(BETAFLIGHT_PATH),
@@ -206,7 +196,6 @@ print(
 )
 
 
-# --- SITL State ---
 @dataclass
 class SITLState:
     """State for SITL synchronization."""
@@ -259,16 +248,7 @@ _latest_frame = [None]           # last RGBA frame returned by render_camera
 
 
 def sitl_post_step(tick: int, ctx: el.StepContext):
-    """
-    Post-step callback for lockstep SITL synchronization.
-
-    This implements the two-phase synchronization pattern:
-    1. Send sensor data (FDM) and RC inputs to Betaflight
-    2. Wait for motor response (blocking - this is the lockstep sync point)
-    3. Write motor commands back to Elodin-DB via ctx.write_component()
-
-    See ARCHITECTURE.md ("Lockstep cycle") for the full sequence diagram.
-    """
+    """Lockstep post-step callback. See ARCHITECTURE.md ('Lockstep cycle')."""
     if _completed[0]:
         return
 
@@ -338,12 +318,12 @@ def sitl_post_step(tick: int, ctx: el.StepContext):
                 "drone.world_vel",
             ]
         )
-        accel = np.array(sensor_data["drone.accel"])  # Body-frame accelerometer
-        gyro = np.array(sensor_data["drone.gyro"])  # Body-frame gyroscope
-        baro = np.array(sensor_data["drone.baro"])  # Barometric altitude
-        mag = np.array(sensor_data["drone.mag"])  # Body-frame magnetometer
-        world_pos = np.array(sensor_data["drone.world_pos"])  # simulator-side world state
-        world_vel = np.array(sensor_data["drone.world_vel"])  # simulator-side world velocity
+        accel = np.array(sensor_data["drone.accel"])
+        gyro = np.array(sensor_data["drone.gyro"])
+        baro = np.array(sensor_data["drone.baro"])
+        mag = np.array(sensor_data["drone.mag"])
+        world_pos = np.array(sensor_data["drone.world_pos"])
+        world_vel = np.array(sensor_data["drone.world_vel"])
 
         # Update sensor buffer with real physics data
         buf.update(
@@ -379,14 +359,8 @@ def sitl_post_step(tick: int, ctx: el.StepContext):
     rc = RCPacket(timestamp=t, channels=channels)
 
     try:
-        # Synchronous lockstep: send FDM+RC, wait for motor response
-        # Motor order matches current Betaflight SITL: BR(0), FR(1), BL(2), FL(3)
-        # The physics simulation (config.py) uses the same motor layout
         s.motors = b.step(fdm, rc)
         s.max_motor = max(s.max_motor, np.max(s.motors))
-
-        # Write motor commands back to Elodin-DB for physics simulation
-        # This uses the StepContext for direct DB access (no TCP overhead)
         ctx.write_component("drone.motor_command", s.motors)
     except TimeoutError:
         pass
@@ -452,7 +426,6 @@ def sitl_post_step(tick: int, ctx: el.StepContext):
         if tick % max(1, int(config.pid_rate)) == 0:
             print(f"[SOLVER] error: {e}")
 
-    # --- Gate-pass detection (runs every tick) ---
     # world_pos layout (Elodin scalar-last quat): [qx, qy, qz, qw, x, y, z]
     try:
         wp = np.asarray(world_pos)
@@ -584,7 +557,6 @@ def next_filename(pattern: str) -> str:
         i += 1
 
 
-# --- Run Simulation ---
 db_filename = next_filename("betaflight_dbXXX")
 print(f"Writing database to: {db_filename}")
 world.run(

@@ -40,10 +40,16 @@ def test_hfov_is_consistent_with_intrinsics():
     assert math.isclose(fpv_camera.CAM_FOV_HORIZ_DEG, 90.0, abs_tol=1e-9)
 
 
-def test_render_every_n_at_2khz_targets_30hz():
+def test_render_every_n_at_2khz_close_to_30hz():
     n = fpv_camera.render_every_n_ticks(2000.0)
     achieved = 2000.0 / n
     # Within 5 Hz of the 30 Hz target
+    assert abs(achieved - fpv_camera.TARGET_FPS) <= 5.0
+
+
+def test_render_every_n_at_1khz_close_to_30hz():
+    n = fpv_camera.render_every_n_ticks(1000.0)
+    achieved = 1000.0 / n
     assert abs(achieved - fpv_camera.TARGET_FPS) <= 5.0
 
 

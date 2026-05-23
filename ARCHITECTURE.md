@@ -27,7 +27,7 @@ The simulator exists so contestants can iterate on autonomy code _today_, before
 | FPV camera | `sensor_camera` registration matching the AGP spec | [`sim/camera.py`](sim/camera.py) |
 | Contestant API | `autopilot(update: SensorUpdate) -> RCCommand` | [`solver/`](solver/) |
 
-The repo intentionally has no proprietary control loops or scoring service — Betaflight does the control, Elodin does the physics + render, and a single Python `post_step` callback wires them together.
+The repo intentionally has no proprietary control loops or scoring service. Betaflight does the control, Elodin does the physics + render, and a single Python `post_step` callback wires them together.
 
 ## Process topology
 
@@ -82,9 +82,9 @@ sequenceDiagram
 A few details that matter:
 
 - **Lockstep is enforced by Betaflight, not us.** Building Betaflight with `ENABLE_SIMULATOR_GYROPID_SYNC` makes its PID loop block on `FDM` packets, so a step in our `post_step` corresponds to exactly one PID iteration. `BetaflightSyncBridge.step()` blocks on the resulting motor packet (`timeout_ms=100`).
-- **Bridge warmup.** On the first `post_step`, we sleep 2 s so Betaflight finishes gyro calibration, then send 500 dummy FDM packets at the default 1 kHz rate to walk it past its arming-disable checks.
-- **Solver rate is decoupled from render rate.** The solver is called every physics tick with a `SensorUpdate`. Slow streams (baro, mag, FPV) expose `*_fresh` flags; Betaflight still receives a continuous RC/FDM stream even when no new frame is ready.
-- **Camera render is requested at FPV rate.** `fpv_tick_interval = round(pid_rate / fpv_rate)` and the latest frame is collected from the message log. The current Elodin render request is synchronous on render ticks, but the solver and Betaflight paths no longer depend on a frame being available.
+- On the first `post_step` we sleep 2 s so Betaflight finishes gyro calibration, then send 500 dummy FDM packets at the default 1 kHz rate to walk it past its arming-disable checks.
+- The solver runs every physics tick with a `SensorUpdate`, decoupled from the render rate. Slow streams (baro, mag, FPV) expose `*_fresh` flags, so Betaflight still receives a continuous RC/FDM stream even when no new frame is ready.
+- Camera renders are requested at the FPV rate (`fpv_tick_interval = round(pid_rate / fpv_rate)`) and the latest frame is collected from the message log. Elodin's render call is synchronous on render ticks, but the solver and Betaflight paths no longer depend on a frame being available.
 - **Motor write path.** `ctx.write_component("drone.motor_command", motors)` writes back into the same in-process DB Elodin reads from. The `motor_command` component is declared with `external_control: "true"` in [`sim/physics.py`](sim/physics.py), which tells Elodin not to overwrite it from the JIT-compiled physics graph.
 
 ## Coordinate frames and unit conventions
@@ -104,7 +104,7 @@ Concrete consequences in code:
 - `sim/sensors.py` and `sim/betaflight_bridge.py` flip the gyro pitch sign when packing FDM packets so Betaflight's internal negation cancels out and roll/pitch stay sensible.
 - `sim/config.py::motor_positions` and `motor_spin_directions` are ordered `[BR, FR, BL, FL]` to match the **raw** Betaflight SITL motor output order. The yaw reaction signs (`[+1, -1, -1, +1]`) follow from that ordering.
 - Visual prop spin in `sim/visualization.py` uses `[-1, +1, +1, -1]` because the geometric prop spin direction is the opposite of the reaction-torque sign that drives the airframe.
-- The drone starts at `initial_position = (0, 0, 0.1)` in ENU. The `EASY_COURSE` is three vertical hoops at `(10, 0, 1.8)`, `(20, 0, 1.8)`, `(30, 0, 1.8)` — straight ahead along +X at hover altitude.
+- The drone starts at `initial_position = (0, 0, 0.1)` in ENU. The `EASY_COURSE` is three vertical hoops at `(10, 0, 1.8)`, `(20, 0, 1.8)`, `(30, 0, 1.8)`, straight ahead along +X at hover altitude.
 
 ## Module reference
 
@@ -132,13 +132,13 @@ There are also `create_5inch_racing_quad()`, `create_3inch_cinewhoop()`, and `cr
 
 The deterministic physics graph. Every `@el.map` here gets JIT-compiled by Elodin's Cranelift backend and runs as part of the world tick:
 
-- `motor_dynamics` — first-order lag from `motor_command` (0..1) to `motor_thrust` (N), with `tau = motor_time_constant`.
-- `compute_body_thrust` — sums motor thrusts into `BodyThrust` (a `SpatialForce` with linear + torque components).
-- `compute_drag` — quadratic drag based on world velocity.
-- `apply_forces` — rotates body thrust to world frame, adds gravity + drag + angular damping, writes `el.Force`.
-- `el.six_dof(dt, effectors, integrator=SemiImplicit)` — integrates Newton-Euler with the assembled effector pipeline.
-- `ground_constraint` — clamps `z >= ground_level`, kills downward velocity at the ground, and applies altitude-blended angular damping so the drone doesn't tip on takeoff.
-- `update_time` — increments `sim_time` for the editor.
+- `motor_dynamics`: first-order lag from `motor_command` (0..1) to `motor_thrust` (N), with `tau = motor_time_constant`.
+- `compute_body_thrust`: sums motor thrusts into `BodyThrust` (a `SpatialForce` with linear + torque components).
+- `compute_drag`: quadratic drag based on world velocity.
+- `apply_forces`: rotates body thrust to world frame, adds gravity + drag + angular damping, writes `el.Force`.
+- `el.six_dof(dt, effectors, integrator=SemiImplicit)`: integrates Newton-Euler with the assembled effector pipeline.
+- `ground_constraint`: clamps `z >= ground_level`, kills downward velocity at the ground, and applies altitude-blended angular damping so the drone doesn't tip on takeoff.
+- `update_time`: increments `sim_time` for the editor.
 
 ### `sim/sensors.py`
 
@@ -149,12 +149,12 @@ Multi-rate IMU, barometer, and magnetometer. Each sensor has a `Noise` model (Ga
 UDP layer:
 
 - Packet structs: `FDMPacket` (sensors, sim → BF), `RCPacket` (16 channels, sim → BF), `ServoPacket` / `ServoPacketRaw` (motors, BF → sim).
-- `BetaflightSyncBridge` — the lockstep `step(fdm, rc) -> motors` path used by `sim/main.py`.
+- `BetaflightSyncBridge`: the lockstep `step(fdm, rc) -> motors` path used by `sim/main.py`.
 - Ports default to `9001` (raw PWM in), `9002` (normalized PWM in), `9003` (FDM out), `9004` (RC out).
 
 ### `sim/visualization.py`
 
-Editor-only ECS components (`PropellerAngle`, `ThrustVizM0..M3`) and two `@el.map` systems that derive prop spin angles and per-motor thrust arrows from the `MotorThrust` component. They're added to the system pipeline (`physics | sensors | visualization`) but produce no force feedback — they exist purely so the schematic's `animate joint=` and `vector_arrow` declarations have data to bind to.
+Editor-only ECS components (`PropellerAngle`, `ThrustVizM0..M3`) and two `@el.map` systems that derive prop spin angles and per-motor thrust arrows from the `MotorThrust` component. They're added to the system pipeline (`physics | sensors | visualization`) but produce no force feedback; they exist purely so the schematic's `animate joint=` and `vector_arrow` declarations have data to bind to.
 
 ### `sim/course.py`
 
@@ -170,9 +170,9 @@ Wraps `world.sensor_camera()`. Resolution and intrinsics match VADR-TS-002 §3.8
 
 The contestant surface:
 
-- [`solver/api.py`](solver/api.py) — `SensorUpdate` (latest sensor values + freshness flags) and `RCCommand` (PWM µs).
-- [`solver/baseline.py`](solver/baseline.py) — minimal arming + hover smoke test.
-- [`solver/README.md`](solver/README.md) — full contract.
+- [`solver/api.py`](solver/api.py): `SensorUpdate` (latest sensor values + freshness flags) and `RCCommand` (PWM µs).
+- [`solver/baseline.py`](solver/baseline.py): minimal arming + hover smoke test.
+- [`solver/README.md`](solver/README.md): the full contract.
 
 A different solver can be loaded without editing the simulator:
 
@@ -182,18 +182,18 @@ RACE_SOLVER=my_team.my_solver elodin editor sim/main.py
 
 ### `scripts/`
 
-- `install_elodin.sh` — wraps the official curl installer for `elodin` and `elodin-db` v0.17.2.
-- `fetch_betaflight.sh` — `git submodule update --init --recursive --depth 1 betaflight`.
-- `build_betaflight.sh` — sets `ENABLE_SIMULATOR_GYROPID_SYNC` in Betaflight's `target.h`, builds the SITL ELF, with macOS-specific clang/`-no_compact_unwind` handling.
-- `configure_betaflight.py` — one-time TCP CLI configuration that maps AUX1=ARM / AUX2=ANGLE, sets `pid_process_denom=1`, kills the 5 s power-on arming grace, disables `runaway_takeoff_prevention`, and saves to `eeprom.bin`. The committed `eeprom.bin` means most contributors never need to run this.
-- `bf_cli_probe.py` — interactive helper for poking Betaflight's CLI when changing the configure script.
+- `install_elodin.sh`: wraps the official curl installer for `elodin` and `elodin-db` v0.17.2.
+- `fetch_betaflight.sh`: runs `git submodule update --init --recursive --depth 1 betaflight`.
+- `build_betaflight.sh`: sets `ENABLE_SIMULATOR_GYROPID_SYNC` in Betaflight's `target.h`, builds the SITL ELF, with macOS-specific clang/`-no_compact_unwind` handling.
+- `configure_betaflight.py`: one-time TCP CLI configuration that maps AUX1=ARM / AUX2=ANGLE, sets `pid_process_denom=1`, kills the 5 s power-on arming grace, disables `runaway_takeoff_prevention`, and saves to `eeprom.bin`. The committed `eeprom.bin` means most contributors never need to run this.
+- `bf_cli_probe.py`: interactive helper for poking Betaflight's CLI when changing the configure script.
 
 ## Editor and visualization
 
 The KDL schematic embedded in `sim/main.py` controls the editor layout, GLB binding, and timeline behaviour:
 
-- `timeline follow_latest=#true` — the viewport playhead auto-jumps to the latest tick as the sim streams data. Without this, `object_3d` and `animate joint` evaluate at the playback timestamp (which starts at the recording's first sample) and the model appears frozen even though plots and `line_3d` trails update from time-series queries. This was the source of the long-running "viewport doesn't move" bug.
-- `object_3d drone.world_pos { glb path="crazyflie.glb" ... }` — live-binds the GLB to the drone's `world_pos` component (quaternion + position).
+- `timeline follow_latest=#true`: the viewport playhead auto-jumps to the latest tick as the sim streams data. Without this, `object_3d` and `animate joint` evaluate at the playback timestamp (which starts at the recording's first sample) and the model appears frozen even though plots and `line_3d` trails update from time-series queries. This was the source of the long-running "viewport doesn't move" bug.
+- `object_3d drone.world_pos { glb path="crazyflie.glb" ... }`: live-binds the GLB to the drone's `world_pos` component (quaternion + position).
 - Four `animate joint="Root.Propeller_N"` directives map the four animated joints in `crazyflie.glb` to the `drone.propeller_angle` indices computed in `sim/visualization.py`. The index remap (joint 0 ← angle 1, joint 1 ← angle 3, joint 2 ← angle 2, joint 3 ← angle 0) reconciles the GLB's internal joint order with the `[BR, FR, BL, FL]` motor order.
 - Four `vector_arrow "drone.thrust_viz_mN" body_frame=#true` declarations show per-motor downward thrust arrows scaled live by `MotorThrust`.
 - A `line_3d frame="ENU" drone.world_pos` element draws the trajectory trail.
@@ -227,8 +227,8 @@ Most knobs are dataclass fields on `DroneConfig` in `sim/config.py`. The handful
 
 Run-level switches:
 
-- `elodin editor sim/main.py` — interactive viewport; default workflow.
-- `elodin run sim/main.py` — same simulation, `s10`-managed, no editor process.
+- `elodin editor sim/main.py`: interactive viewport; the default workflow.
+- `elodin run sim/main.py`: same simulation, `s10`-managed, no editor process.
 
 ## Layout
 
@@ -272,43 +272,53 @@ The simulator hits its goal of giving contestants a working practice rig today, 
 
 ### Fidelity to the AGP spec
 
-- **Match airframe to the announced AGP reference platform** (chassis 280 × 280 × 160 mm, 5″ props, declared mass) once it's published. Right now `DEFAULT_CONFIG` is a generic 5″ racer.
-- **Atmospheric model.** Drag is a single quadratic coefficient; turbulence, ground effect, and rotor wash are absent. A Dryden gust model and simple ground effect would make low passes far more realistic.
-- **Battery model + voltage sag.** Motor max thrust is constant; in real flight it droops with cell voltage and that completely changes lap pacing late in a race.
+The biggest single fidelity gap is the airframe itself: `DEFAULT_CONFIG` is a generic 5″ racer, and the moment Anduril publishes the AGP reference platform (chassis 280 × 280 × 160 mm, 5″ props, declared mass) we should match it.
+
+Two physics gaps matter for the upper end of contestant skill:
+
+- Drag is a single quadratic coefficient. Turbulence, ground effect, and rotor wash are all absent; a Dryden gust model plus simple ground effect would make low passes far more realistic.
+- Motor max thrust is constant. In real flight it droops with cell voltage, and that completely changes lap pacing late in a race.
 
 ### Course and scoring
 
-- **Multi-course library.** We ship `EASY_COURSE` (straight 3-gate). Real qualifier-style courses (banked turns, vertical chicanes, split-S) should be one constructor per course in `sim/course.py`.
-- **Penalty model.** Gate-pass detection is binary "did we cross the inner square?". Adding edge / strut collisions, missed-gate penalties, and DSQ-on-collision would let solvers train against the real scoring rules.
-- **Procedural courses + curriculum.** A simple seeded course generator would let RL/IL pipelines train against unlimited variations.
+We ship `EASY_COURSE` (straight 3-gate). Real qualifier-style courses (banked turns, vertical chicanes, split-S) want to be one constructor per course in `sim/course.py`, plus a seeded procedural generator so RL/IL pipelines can train against unlimited variations.
+
+Gate-pass detection is also binary ("did we cross the inner square?"). Adding edge / strut collisions, missed-gate penalties, and DSQ-on-collision would let solvers train against the real scoring rules instead of a softened proxy.
 
 ### Solver ergonomics
 
-- **Pluggable sensor channels.** `SensorUpdate` is currently a fixed dataclass. A registration mechanism would let teams pull in baro derivatives, attitude estimates, etc. without forking the sim.
-- **Solver lifecycle hooks.** Today only `autopilot(update)` is called. Adding `on_start(config)` and `on_finish(summary)` would let solvers warm caches, load weights, and emit per-run reports.
-- **Async / batched solvers.** The solver runs synchronously in the post-step. A non-blocking variant (returning `Future[RCCommand]` and reusing the previous command if it isn't ready) would let teams run heavier perception models without slowing the physics tick.
-- **Built-in attitude estimate from FDM**, exposed in `SensorUpdate`. Teams shouldn't need to re-implement Madgwick on day one.
+- `SensorUpdate` is currently a fixed dataclass. A registration mechanism would let teams pull in baro derivatives, attitude estimates, and so on without forking the sim.
+- Today only `autopilot(update)` is called. Adding `on_start(config)` and `on_finish(summary)` hooks would let solvers warm caches, load weights, and emit per-run reports.
+- The solver runs synchronously in the post-step. A non-blocking variant (returning `Future[RCCommand]` and reusing the previous command if it isn't ready) would let teams run heavier perception models without slowing the physics tick.
+- Expose a built-in attitude estimate from FDM in `SensorUpdate`. Teams shouldn't need to re-implement Madgwick on day one.
 
 ### Tooling and observability
 
-- **GitHub Actions CI.** Run `uv run pytest` on every PR; optional matrix for macOS + Linux. The test suite already runs in < 1 s with no Elodin runtime needed, so this is essentially free.
-- **Lap leaderboard / replay diff.** A short script that re-runs N solvers against the same `start_timestamp` and produces a comparison table + CSV would make iteration hugely faster.
-- **Editor screenshot regression.** Capture a viewport screenshot at a fixed tick and diff against a reference; would have caught the "object_3d frozen at t=0" bug we hit this week long before a human noticed.
-- **Headless smoke job for Betaflight builds.** Builds + configures + runs the 15 s sim, asserts on `[RACE]` summary line. Would catch upstream Betaflight regressions early.
+GitHub Actions CI is the obvious first step. `uv run pytest` runs in under a second with no Elodin runtime, so a per-PR job (optionally matrixed over macOS + Linux) is essentially free. A headless smoke job that builds Betaflight, configures it, runs the 15 s sim, and asserts on the `[RACE]` summary line would catch upstream Betaflight regressions before they hit anyone else.
+
+Two iteration tools worth building:
+
+- **Lap leaderboard / replay diff.** A short script that re-runs N solvers against the same `start_timestamp` and produces a comparison table + CSV.
+- **Editor screenshot regression.** Capture a viewport screenshot at a fixed tick and diff against a reference. Would have caught the "object_3d frozen at t=0" bug we hit this week long before a human noticed.
 
 ### Performance
 
-- **Real-time at 1 kHz.** The current run is close to real-time but still sensitive to camera rendering + DB commit cost. Reducing `telemetry_rate` below `simulation_rate` (Elodin supports this; we don't expose it yet) would let the editor stream cleanly at 1× without losing physics resolution.
-- **Camera frame zero-copy.** Today `ctx.read_msg()` returns bytes that we copy into a NumPy array. Wiring it through `np.frombuffer` with a writable=False view would shave a noticeable copy at 30 Hz.
+The current run is close to real-time but still sensitive to camera rendering and DB commit cost. Two specific knobs:
+
+- Reduce `telemetry_rate` below `simulation_rate` (Elodin supports this; we don't expose it yet) so the editor streams cleanly at 1× without losing physics resolution.
+- Zero-copy the camera frame. `ctx.read_msg()` currently returns bytes that we copy into a NumPy array; routing it through `np.frombuffer` with a writable=False view would shave a noticeable copy at 30 Hz.
 
 ### Reproducibility and packaging
 
-- **Pin Betaflight to a tagged release** (currently `master`). Submodule churn has bitten us once already; a tagged version with a documented bump cadence is safer.
-- **Cross-platform CI for `scripts/build_betaflight.sh`.** macOS + Ubuntu LTS + Fedora. The current script has macOS-specific clang flags but is otherwise generic.
-- **Docker / dev-container image.** A single container with the Elodin CLI, `uv`, build tools, and a pre-built Betaflight ELF would let new contestants skip the 10-minute setup entirely.
+Betaflight is currently pinned to `master`. Submodule churn has bitten us once already, so a tagged version with a documented bump cadence is safer. `scripts/build_betaflight.sh` has macOS-specific clang flags but is otherwise generic; running it under CI across macOS + Ubuntu LTS + Fedora would lock in cross-platform support.
+
+A Docker or dev-container image bundling the Elodin CLI, `uv`, build tools, and a pre-built Betaflight ELF would let new contestants skip the 10-minute setup entirely.
 
 ### Documentation
 
-- **Tutorial: writing your first solver.** Walk a reader from `solver.baseline` to a thresholded-image gate-tracker. The current `solver/README.md` is a contract, not a tutorial.
-- **Coordinate-frame cheat sheet.** ENU/FLU/NED/FRD plus quaternion layout in one place. Most of this lives in code comments in `sim/sensors.py` and `sim/betaflight_bridge.py`; surfacing it would save real time.
-- **Profiling recipe.** Document `ELODIN_DETAILED_TIMING=1` + `elodin-db query` + the `[BetaflightSyncBridge]` summary line as a "is the sim healthy?" runbook.
+`solver/README.md` is a contract, not a tutorial. A walkthrough from `solver.baseline` to a thresholded-image gate-tracker is the most useful thing we could add for new contestants.
+
+Two smaller docs that would save real time:
+
+- A coordinate-frame cheat sheet (ENU/FLU/NED/FRD plus quaternion layout) in one place. Most of this currently lives in code comments in `sim/sensors.py` and `sim/betaflight_bridge.py`.
+- A profiling recipe documenting `ELODIN_DETAILED_TIMING=1` + `elodin-db query` + the `[BetaflightSyncBridge]` summary line as an "is the sim healthy?" runbook.

@@ -15,8 +15,6 @@ from sim.course import (
 gate_x = (Gate(0, (5.0, 0.0, 1.5)),)
 
 
-# --- X-axis (vertical hoop facing +X) ---
-
 def test_x_gate_pass_centered():
     # Drone moves from x=4 to x=6, dead-center on Y/Z
     assert detect_gate_pass(gate_x, -1, (4.0, 0.0, 1.5), (6.0, 0.0, 1.5)) == 0
@@ -43,8 +41,6 @@ def test_x_gate_no_pass_when_already_done():
     assert detect_gate_pass(gate_x, 0, (4.0, 0.0, 1.5), (6.0, 0.0, 1.5)) is None
 
 
-# --- Edge cases ---
-
 def test_pass_on_inner_boundary_y():
     half = GATE_INNER_W / 2.0
     # Exactly on the Y boundary should still count (inclusive on the half)
@@ -60,8 +56,6 @@ def test_pass_just_outside_inner_y():
     ) is None
 
 
-# --- Course presets sanity ---
-
 def test_easy_course_is_three_x_gates_ahead_of_origin():
     assert len(EASY_COURSE) == 3
     for g in EASY_COURSE:
@@ -72,15 +66,11 @@ def test_easy_course_is_three_x_gates_ahead_of_origin():
     assert xs == [10.0, 20.0, 30.0]
 
 
-# --- Entity-name helper ---
-
 def test_gate_name_stable():
     assert gate_name(0) == "gate_0"
     assert gate_name(2) == "gate_2"
     assert gate_name(31) == "gate_31"
 
-
-# --- Schematic rendering smoke test ---
 
 def test_schematic_renders_one_glb_per_gate():
     s = schematic_for(EASY_COURSE)

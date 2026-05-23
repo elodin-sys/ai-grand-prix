@@ -38,7 +38,7 @@ CLI_PORT = 5761
 CLI_COMMANDS = [
     # Map AUX1 to the ARM mode (mode 0). Trigger when channel value is 1700-2100.
     "aux 0 0 0 1700 2100 0 0",
-    # Map AUX2 to ANGLE mode (mode 1) — auto-leveling so the solver can send
+    # Map AUX2 to ANGLE mode (mode 1): auto-leveling so the solver can send
     # stable angle-target inputs instead of fighting raw rate commands.
     "aux 1 1 1 1700 2100 0 0",
     # 1:1 PID denom for lockstep SITL
@@ -157,7 +157,7 @@ def main() -> int:
 
         cli.close()
 
-        # save() reboots BF — give it time to flush
+        # save() reboots BF; give it time to flush
         time.sleep(2.0)
 
     finally:

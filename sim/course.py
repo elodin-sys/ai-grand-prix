@@ -24,8 +24,7 @@ import jax
 import jax.numpy as jnp
 
 
-# --- Gate dimensions (meters) ---
-
+# Gate dimensions, meters.
 GATE_OUTER_W = 2.7
 GATE_OUTER_H = 2.7
 GATE_DEPTH = 0.26
@@ -51,17 +50,13 @@ class Gate:
     yaw_deg: float = 0.0
 
 
-# --- Course presets ---
-
-# Easy course: 3 AGP-style vertical gates straight ahead at hover altitude.
-# Elodin uses ENU world coordinates, so +X is East and +Z is Up.
+# 3 AGP-style vertical gates straight ahead at hover altitude. Elodin uses
+# ENU world coordinates, so +X is East and +Z is Up.
 EASY_COURSE: Tuple[Gate, ...] = (
     Gate(0, (10.0, 0.0, 1.8)),
     Gate(1, (20.0, 0.0, 1.8)),
     Gate(2, (30.0, 0.0, 1.8)),
 )
-
-# --- Components ---
 
 # Index of the LAST gate the drone has crossed; -1 before any pass.
 # external_control so the post_step gate-tracker can write to it.
@@ -105,8 +100,6 @@ class GateProgress(el.Archetype):
         default_factory=lambda: jnp.full(MAX_GATES, -1.0)
     )
 
-
-# --- World/schematic registration ---
 
 # Visual asset bound to each gate entity. The Elodin editor resolves GLB
 # paths the same way it does for `crazyflie.glb` (the drone model), so the
@@ -177,8 +170,6 @@ def schematic_for(course: Tuple[Gate, ...]) -> str:
     return "\n".join(blocks)
 
 
-# --- Pass detection (host-side, in post_step) ---
-
 def detect_gate_pass(
     course: Tuple[Gate, ...],
     last_gate_passed: int,
@@ -205,8 +196,6 @@ def detect_gate_pass(
         return None
     return next_idx
 
-
-# --- End-of-race summary ---
 
 def print_summary(
     course: Tuple[Gate, ...],
