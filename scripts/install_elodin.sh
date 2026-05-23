@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-VERSION="${ELODIN_VERSION:-v0.17.2}"
+VERSION="${ELODIN_VERSION:-v0.17.3}"
 INSTALLER_URL="https://github.com/elodin-sys/elodin/releases/download/${VERSION}/elodin-installer.sh"
 DB_INSTALLER_URL="https://github.com/elodin-sys/elodin/releases/download/${VERSION}/elodin-db-installer.sh"
 
