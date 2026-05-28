@@ -14,24 +14,40 @@ What you get out of the box:
 - A 3-gate forward course in Elodin's ENU frame (+X/East), with automatic pass-time tracking.
 - A clean [`solver/`](solver/) package. That's the only directory you edit to compete.
 
-## Quick start (macOS / Linux, ~5 minutes)
+## Quick start (macOS / Ubuntu / Windows WSL, ~5 minutes)
 
-You need `uv`, `git`, and `git lfs`. The Elodin CLI is installed by `scripts/install_elodin.sh`.
+You need `uv`, `git`, `git lfs` and a C toolchain for building Betaflight:
 
-Building Betaflight SITL also needs a C toolchain. On Ubuntu/Debian:
+On macOS install the Xcode Command Line Tools (`xcode-select --install`).
 
+On Windows:
+- open Powershell as admin
+- edit a new file with `notepad "$env:USERPROFILE\.wslconfig"`
+- set the wsl network config with:
 ```bash
-sudo apt update && sudo apt -y install build-essential clang-18
+[wsl2]
+networkingMode=mirrored
+```
+- and run `wsl --install`, which will start a new WSL distro
+
+On Ubuntu/WSL run:
+```bash
+sudo apt update && sudo apt -y install build-essential clang-18 libasound2t64 git-lfs curl
 ```
 
-On macOS the Xcode Command Line Tools (`xcode-select --install`) cover it. For other distros, see Betaflight's own [Building in Ubuntu guide](https://betaflight.com/docs/development/building/Building-in-Ubuntu) for the equivalent packages.
+Finally install uv:
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Clone this repository and then:
 
 ```bash
 # 1) Install the Elodin CLI (editor + run + db)
 bash scripts/install_elodin.sh
 
 # 2) Set up the Python environment
-uv sync
+uv venv --python 3.13 && source .venv/bin/activate && uv sync
 
 # 3) Fetch and build Betaflight SITL (one-time)
 git submodule update --init --recursive --depth 1 betaflight
@@ -41,8 +57,15 @@ bash scripts/build_betaflight.sh
 #    This is normally a no-op for a fresh clone.
 uv run python scripts/configure_betaflight.py
 
-# 5) Open the simulation in the Elodin editor
+# 5a) on Mac / Ubuntu, open the simulation in the Elodin editor to start sim and connect editor directly
 elodin editor sim/main.py
+
+# 5b) start just the simulation in WSL
+elodin run sim/main.py
+# then open a new Powershell, download & install the Elodin windows release binary
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/elodin-sys/elodin/releases/download/v0.17.3/elodin-installer.sh | sh
+# clone the repo there as well, and run
+elodin.exe editor 127.0.0.1:2240
 ```
 
 After `scripts/build_betaflight.sh`, `git status` may show `M betaflight`. That is expected: the build script toggles Betaflight's `target.h` inside the submodule to enable simulator lockstep.
