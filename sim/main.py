@@ -373,8 +373,7 @@ def sitl_post_step(tick: int, ctx: el.StepContext):
             fpv_camera.request_render(ctx, FPV_CAM_NAME)
             _last_render_tick[0] = tick
         except Exception as e:
-            if tick % max(1, int(config.pid_rate)) == 0:
-                print(f"[FPV] render trigger failed at tick {tick}: {e}")
+            print(f"[FPV] render trigger failed at tick {tick}: {e}")
 
     try:
         frame = fpv_camera.collect_frame(ctx, FPV_CAM_NAME)
