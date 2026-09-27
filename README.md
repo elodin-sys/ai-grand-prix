@@ -63,7 +63,7 @@ elodin editor sim/main.py
 # 5b) start just the simulation in WSL
 elodin run sim/main.py
 # then open a new Powershell, download & install the Elodin windows release binary
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/elodin-sys/elodin/releases/download/v0.17.3/elodin-installer.sh | sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/elodin-sys/elodin/releases/download/v0.17.2/elodin-installer.sh | sh
 # clone the repo there as well, and run
 elodin.exe editor 127.0.0.1:2240
 ```
